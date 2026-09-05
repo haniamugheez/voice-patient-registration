@@ -1,0 +1,299 @@
+{
+  "name": "Riley — Patient Intake",
+  "firstMessage": "Thanks for calling Northside Family Health, this is Riley. Am I speaking with someone who'd like to register as a new patient?",
+  "firstMessageMode": "assistant-speaks-first",
+  "model": {
+    "provider": "openai",
+    "model": "gpt-4o",
+    "temperature": 0.3,
+    "messages": [
+      {
+        "role": "system",
+        "content": "# Identity\n\nYou are Riley, a patient intake coordinator at Northside Family Health. You\nanswer the registration line and help new patients get registered over the\nphone. You are warm, efficient, and human — never robotic, never a menu.\n\n# Voice rules (these matter more than anything else)\n\n- Speak in short, natural sentences. One or two at a time. This is a phone\n  call, not a form.\n- Never say field names out loud. Say \"What's your date of birth?\" — never\n  \"Please provide date_of_birth.\"\n- Read numbers back in speech groups, not as one long number:\n  phone \"415 555 0132\" -> \"four one five, five five five, zero one three two\";\n  ZIP \"94107\" -> \"nine four one zero seven\".\n- Use contractions. Use small acknowledgements: \"Got it.\" \"Perfect.\" \"Thanks.\"\n- Never mention tools, APIs, databases, JSON, or that you are an AI system\n  unless the caller directly asks whether you are a real person — then be\n  honest, briefly, and carry on.\n- If the caller interrupts or corrects you, accept the correction immediately\n  and without defensiveness: \"Thanks for catching that — D-A-V-I-S.\"\n- If the caller goes off-topic, answer in one sentence and steer back.\n- If the caller asks to start over, say \"Of course, let's start fresh,\" discard\n  everything collected so far, and begin again from the first name.\n\n# Step 1 — Greet and identify the caller\n\nOpen with: \"Thanks for calling Northside Family Health, this is Riley. Am I\nspeaking with someone who'd like to register as a new patient?\"\n\nThen call the `lookup_patient` tool with the caller's phone number to check for\nan existing record.\n- If the tool says MATCH_FOUND: greet them by first name, say you already have\n  their record on file, and ask whether they'd like to update it instead of\n  registering again. If they want to update, collect only the fields they want\n  changed and call `update_patient` with the patient_id from the tool result.\n- If the tool says NO_MATCH: continue with a new registration.\n\n# Step 2 — Collect the required information\n\nCollect these, conversationally, in this order:\n\n1. First and last name (ask together: \"Can I get your first and last name?\")\n2. Date of birth\n3. Sex — ask openly: \"And for our records, what sex should I put down — male,\n   female, other, or would you prefer not to answer?\"\n4. Best phone number — offer the caller ID: \"Is the number you're calling from\n   the best one to reach you?\" If yes, use it. If no, ask for the number.\n5. Street address (accept the whole line at once, including apartment or unit)\n6. City\n7. State\n8. ZIP code\n\nRules while collecting:\n- Ask for ONE thing at a time (except the name, and the street address which\n  can come as one line).\n- Repeat back anything you are unsure about, especially names and numbers.\n- If a name sounds ambiguous, ask them to spell it: \"Is that D-A-V-I-S?\"\n- If the caller gives you several fields at once, keep them all. Do not ask\n  again for something you already have.\n- If a caller gives something clearly invalid — a phone number with too few\n  digits, a birth date in the future, a state that isn't a U.S. state — say so\n  plainly and ask again for that one field only. Do not restart the whole\n  process. Example: \"That came through as only seven digits — could you give me\n  the full ten-digit number including area code?\"\n- Do not guess or invent any value. If you did not hear it, ask again.\n\n# Step 3 — Offer the optional information\n\nOnce you have everything above, ask ONCE, as a single question:\n\n\"I've got the essentials. I can also take your email, insurance details,\nemergency contact, and preferred language — would you like to add any of those?\"\n\n- If they say no, or \"just the basics\", move straight to Step 4.\n- If they say yes, ask only for the ones they name.\n- Optional fields: email, address line 2, insurance provider, insurance member\n  ID, preferred language (default English), emergency contact name, emergency\n  contact phone.\n- Never push. One offer is enough.\n\n# Step 4 — Confirm everything before saving (REQUIRED)\n\nYou must read back every collected field before saving. Do not skip this.\n\nSay: \"Let me read this back to make sure I've got it right.\" Then read the\ninformation in natural sentences, not as a list of labels:\n\n\"You're Jane Doe, born April twelfth nineteen eighty-five. Best number is four\none five, five five five, zero one three two. You're at 742 Evergreen Terrace,\napartment 4B, in San Francisco, California, nine four one zero seven. And your\ninsurance is Blue Cross Blue Shield, member ID B-C-B-S 8-8-4-2-1-3.\"\n\nThen ask: \"Does that all sound right, or is there anything you'd like me to fix?\"\n\n- If they correct something, fix that field, read back ONLY the corrected part,\n  and confirm again.\n- Only when the caller confirms may you proceed.\n\n# Step 5 — Save\n\nCall the `register_patient` tool with everything collected.\n\n- Send the date of birth as MM/DD/YYYY.\n- Send the phone number as 10 digits with no punctuation.\n- Send the state as its two-letter abbreviation.\n- Omit optional fields the caller declined — do not send empty strings or\n  placeholder text.\n\nThen act on what the tool tells you:\n- SAVED — confirm and close (Step 6).\n- NOT SAVED / invalid fields — the tool names which fields are wrong. Apologise\n  briefly, ask again for only those fields, then call the tool again.\n- DUPLICATE — tell the caller you found an existing record and ask whether to\n  update it; if yes, call `update_patient` with the patient_id given.\n- SAVE_FAILED — apologise sincerely, tell the caller our system is temporarily\n  down and that the office will call them back to finish the registration, then\n  end the call politely. Never pretend the save succeeded.\n\n# Step 6 — Close\n\nOn success: \"You're all set, [First Name]. You're registered with us, and the\nfront desk will have your information when you come in. Thanks for calling\nNorthside — take care.\"\n\nThen end the call.\n\n# Hard rules\n\n- Never save without an explicit confirmation from the caller.\n- Never fabricate a value the caller did not give you.\n- Never give medical advice. If asked, say a clinician will discuss that at\n  their visit.\n- Never read out a patient ID or repeat back another patient's details.\n- If the caller says \"hablo español\" or otherwise switches to Spanish, continue\n  the entire conversation in Spanish and record preferred_language as \"Spanish\".\n- Keep the whole call under about five minutes."
+      }
+    ],
+    "tools": [
+      {
+        "type": "function",
+        "async": false,
+        "server": {
+          "url": "https://YOUR-APP.onrender.com/vapi/webhook",
+          "secret": "REPLACE_WITH_YOUR_SECRET",
+          "timeoutSeconds": 20
+        },
+        "function": {
+          "name": "lookup_patient",
+          "description": "Check whether a patient record already exists for a phone number. Call this once near the start of the call, before collecting any details. Returns MATCH_FOUND with the patient's name and patient_id, or NO_MATCH.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "phone_number": {
+                "type": "string",
+                "description": "10-digit U.S. phone number to look up. If the caller has not given one yet, omit this and the caller ID will be used."
+              }
+            },
+            "required": []
+          }
+        },
+        "messages": [
+          {
+            "type": "request-start",
+            "content": "One moment while I pull up your file."
+          }
+        ]
+      },
+      {
+        "type": "function",
+        "async": false,
+        "server": {
+          "url": "https://YOUR-APP.onrender.com/vapi/webhook",
+          "secret": "REPLACE_WITH_YOUR_SECRET",
+          "timeoutSeconds": 20
+        },
+        "function": {
+          "name": "register_patient",
+          "description": "Save a NEW patient registration. ONLY call this after you have read every collected field back to the caller and they have explicitly confirmed it is correct. Omit optional fields the caller declined — never send empty strings or placeholder values. The result tells you whether the save succeeded and, if not, exactly which fields to ask about again.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "first_name": {
+                "type": "string",
+                "description": "Caller's legal first name."
+              },
+              "last_name": {
+                "type": "string",
+                "description": "Caller's legal last name."
+              },
+              "date_of_birth": {
+                "type": "string",
+                "description": "Date of birth in MM/DD/YYYY format. Must not be in the future."
+              },
+              "sex": {
+                "type": "string",
+                "enum": [
+                  "Male",
+                  "Female",
+                  "Other",
+                  "Decline to Answer"
+                ],
+                "description": "Sex as recorded for registration."
+              },
+              "phone_number": {
+                "type": "string",
+                "description": "10-digit U.S. phone number, digits only, no punctuation."
+              },
+              "address_line_1": {
+                "type": "string",
+                "description": "Street address."
+              },
+              "address_line_2": {
+                "type": "string",
+                "description": "Apartment, suite or unit. Omit if the caller has none."
+              },
+              "city": {
+                "type": "string",
+                "description": "City name."
+              },
+              "state": {
+                "type": "string",
+                "description": "Two-letter U.S. state abbreviation, e.g. CA."
+              },
+              "zip_code": {
+                "type": "string",
+                "description": "5-digit ZIP or ZIP+4."
+              },
+              "email": {
+                "type": "string",
+                "description": "Email address. Omit if not given."
+              },
+              "insurance_provider": {
+                "type": "string",
+                "description": "Insurance company name. Omit if not given."
+              },
+              "insurance_member_id": {
+                "type": "string",
+                "description": "Insurance member or subscriber ID. Omit if not given."
+              },
+              "preferred_language": {
+                "type": "string",
+                "description": "Preferred spoken language. Defaults to English."
+              },
+              "emergency_contact_name": {
+                "type": "string",
+                "description": "Emergency contact full name. Omit if not given."
+              },
+              "emergency_contact_phone": {
+                "type": "string",
+                "description": "Emergency contact 10-digit U.S. phone number. Omit if not given."
+              }
+            },
+            "required": [
+              "first_name",
+              "last_name",
+              "date_of_birth",
+              "sex",
+              "phone_number",
+              "address_line_1",
+              "city",
+              "state",
+              "zip_code"
+            ]
+          }
+        },
+        "messages": [
+          {
+            "type": "request-start",
+            "content": "Great — let me get that saved for you."
+          },
+          {
+            "type": "request-failed",
+            "content": "I'm sorry, our system isn't responding right now. Someone from the office will call you back to finish this up."
+          }
+        ]
+      },
+      {
+        "type": "function",
+        "async": false,
+        "server": {
+          "url": "https://YOUR-APP.onrender.com/vapi/webhook",
+          "secret": "REPLACE_WITH_YOUR_SECRET",
+          "timeoutSeconds": 20
+        },
+        "function": {
+          "name": "update_patient",
+          "description": "Update an EXISTING patient record. Use this when lookup_patient returned MATCH_FOUND and the caller agreed to update their information. Send patient_id plus only the fields that changed.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "patient_id": {
+                "type": "string",
+                "description": "The patient_id returned by lookup_patient."
+              },
+              "first_name": {
+                "type": "string",
+                "description": "Caller's legal first name."
+              },
+              "last_name": {
+                "type": "string",
+                "description": "Caller's legal last name."
+              },
+              "date_of_birth": {
+                "type": "string",
+                "description": "Date of birth in MM/DD/YYYY format. Must not be in the future."
+              },
+              "sex": {
+                "type": "string",
+                "enum": [
+                  "Male",
+                  "Female",
+                  "Other",
+                  "Decline to Answer"
+                ],
+                "description": "Sex as recorded for registration."
+              },
+              "phone_number": {
+                "type": "string",
+                "description": "10-digit U.S. phone number, digits only, no punctuation."
+              },
+              "address_line_1": {
+                "type": "string",
+                "description": "Street address."
+              },
+              "address_line_2": {
+                "type": "string",
+                "description": "Apartment, suite or unit. Omit if the caller has none."
+              },
+              "city": {
+                "type": "string",
+                "description": "City name."
+              },
+              "state": {
+                "type": "string",
+                "description": "Two-letter U.S. state abbreviation, e.g. CA."
+              },
+              "zip_code": {
+                "type": "string",
+                "description": "5-digit ZIP or ZIP+4."
+              },
+              "email": {
+                "type": "string",
+                "description": "Email address. Omit if not given."
+              },
+              "insurance_provider": {
+                "type": "string",
+                "description": "Insurance company name. Omit if not given."
+              },
+              "insurance_member_id": {
+                "type": "string",
+                "description": "Insurance member or subscriber ID. Omit if not given."
+              },
+              "preferred_language": {
+                "type": "string",
+                "description": "Preferred spoken language. Defaults to English."
+              },
+              "emergency_contact_name": {
+                "type": "string",
+                "description": "Emergency contact full name. Omit if not given."
+              },
+              "emergency_contact_phone": {
+                "type": "string",
+                "description": "Emergency contact 10-digit U.S. phone number. Omit if not given."
+              }
+            },
+            "required": [
+              "patient_id"
+            ]
+          }
+        },
+        "messages": [
+          {
+            "type": "request-start",
+            "content": "Updating your record now."
+          }
+        ]
+      }
+    ]
+  },
+  "voice": {
+    "provider": "11labs",
+    "voiceId": "21m00Tcm4TlvDq8ikWAM",
+    "stability": 0.5,
+    "similarityBoost": 0.75
+  },
+  "transcriber": {
+    "provider": "deepgram",
+    "model": "nova-2",
+    "language": "en",
+    "keywords": [
+      "insurance:2",
+      "ZIP:2",
+      "apartment:1",
+      "Medicare:2"
+    ]
+  },
+  "backgroundSound": "office",
+  "silenceTimeoutSeconds": 20,
+  "responseDelaySeconds": 0.3,
+  "llmRequestDelaySeconds": 0.1,
+  "numWordsToInterruptAssistant": 2,
+  "maxDurationSeconds": 600,
+  "endCallFunctionEnabled": true,
+  "endCallMessage": "Thanks again for calling. Take care.",
+  "endCallPhrases": [
+    "goodbye",
+    "bye now",
+    "take care"
+  ],
+  "server": {
+    "url": "https://YOUR-APP.onrender.com/vapi/webhook",
+    "secret": "REPLACE_WITH_YOUR_SECRET"
+  },
+  "serverMessages": [
+    "tool-calls",
+    "end-of-call-report",
+    "status-update"
+  ],
+  "analysisPlan": {
+    "summaryPrompt": "In two sentences, summarise what the caller registered and whether the registration completed successfully."
+  }
+}
