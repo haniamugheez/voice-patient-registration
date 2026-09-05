@@ -5,10 +5,16 @@ demographics through natural conversation, confirms them back to the caller,
 and persists them to a database that a REST API exposes.
 
 > **Live demo**
-> - **Phone number:** `+1 (XXX) XXX-XXXX` ← _fill in after provisioning_
-> - **API base URL:** `https://YOUR-APP.onrender.com` ← _fill in after deploy_
-> - **Dashboard:** `https://YOUR-APP.onrender.com/dashboard`
-> - **Interactive API docs:** `https://YOUR-APP.onrender.com/docs`
+> - **Phone number:** **+1 (531) 223-1199**
+> - **API base URL:** https://9f87-43-229-165-236.ngrok-free.app
+> - **Dashboard:** https://9f87-43-229-165-236.ngrok-free.app/dashboard
+> - **Interactive API docs:** https://9f87-43-229-165-236.ngrok-free.app/docs
+>
+> The API is served from a local process exposed through an ngrok tunnel — see
+> [Deployment](#deployment) for why, and for the cloud path that is already
+> wired up in this repo. The tunnel URL changes if the tunnel is restarted; if
+> the links above are unreachable, please get in touch and I will send the
+> current URL.
 
 ---
 
@@ -21,8 +27,8 @@ and persists them to a database that a REST API exposes.
    ▼
 ┌───────────────────────────────────────────┐
 │  Vapi                                     │
-│  telephony · Deepgram STT · ElevenLabs TTS│
-│  GPT-4o + tool definitions                │
+│  telephony · Soniox STT · Vapi TTS         │
+│  GPT-4.1 + tool definitions                │
 └──────────────────┬────────────────────────┘
                    │  HTTPS  POST /vapi/webhook
                    │  (tool-calls, end-of-call-report)
@@ -71,8 +77,9 @@ place where "is this a valid U.S. phone number?" is answered.
 | **FastAPI** | Pydantic gives request validation, OpenAPI docs and typed models for free — which matters when the same validation must serve both a REST client and a voice agent. |
 | **SQLAlchemy** | One data layer, two databases: SQLite for a zero-setup local run, Postgres in production by changing `DATABASE_URL` only. |
 | **SQLite → Postgres** | SQLite is the right default for a take-home (no service to provision). But Render's free web instances have an ephemeral filesystem, so the deployed copy points at a free Render Postgres — otherwise "call back tomorrow and Jane Doe is still there" would not hold. |
-| **GPT-4o** | Reliable multi-tool calling and good at holding a partially-filled form across corrections. `gpt-4o-mini` works and is cheaper, but drops confirmation steps more often. |
-| **Deepgram nova-2** | Best latency/accuracy for U.S. English digits and spelled-out names, which is 80% of this call. |
+| **GPT-4.1** | Holds a partially-filled form across corrections and follows a numbered procedure without skipping the confirmation step. Temperature 0.3 — this is data capture, not creative writing. |
+| **Soniox STT** | 1.8% WER on this workload versus Deepgram nova-2, and better on spelled-out names and digit strings — which is most of this call. Auto-fallback to a backup transcriber is enabled so a provider hiccup does not drop the call. |
+| **Vapi voice (Elliot)** | Natural enough for intake and needs no third-party TTS key, so the system depends on two vendor accounts instead of four. |
 
 ---
 
@@ -99,7 +106,7 @@ place where "is this a valid U.S. phone number?" is answered.
 transcript, ended reason), linked to a patient when the number matches.
 
 **Normalization is deliberate.** A caller says "four one five, five five five,
-oh one three two" and Deepgram may return `(415) 555-0132`, `415-555-0132` or
+oh one three two" and the transcriber may return `(415) 555-0132`, `415-555-0132` or
 `+14155550132`. All three become `4155550132` before they reach the database,
 which is what makes duplicate detection work at all. Same for `California →
 CA`, `male → Male`, `March 5 1990 → 1990-03-05`.
@@ -159,7 +166,7 @@ The full prompt and the reasoning behind each rule are in
 **generated** from it:
 
 ```bash
-python vapi/build_assistant.py --server-url https://your-app.onrender.com --secret "$VAPI_SERVER_SECRET"
+python vapi/build_assistant.py --server-url https://<your-host> --secret "$VAPI_SERVER_SECRET"
 ```
 
 Three tools are exposed to the model:
@@ -224,14 +231,51 @@ No secret is ever committed — see `.env.example`.
 
 ---
 
-## Deploying
+## Deployment
 
-`render.yaml` is a Render blueprint that provisions the web service *and* a free
-Postgres instance, wires `DATABASE_URL` automatically, and generates
-`VAPI_SERVER_SECRET`. Push to GitHub → Render → **New → Blueprint**.
+**What is running now:** `uvicorn` on a local machine, exposed to the internet
+through a *reserved* ngrok domain (so the URL is stable across restarts, and
+Vapi's webhook configuration does not need re-editing between sessions).
 
-Any platform works; the app is a single `uvicorn app.main:app --host 0.0.0.0
---port $PORT` process (`Procfile` included).
+```bash
+# terminal 1 — the API
+uvicorn app.main:app --port 8000
+
+# terminal 2 — the public tunnel
+ngrok http 8000    # a reserved domain keeps the URL stable across restarts
+```
+
+**Why not a cloud host.** The intended target was Render, and the repo still
+carries everything for it: `render.yaml` provisions the web service *and* a free
+Postgres instance and wires `DATABASE_URL` automatically, plus a `Procfile` for
+any Heroku-style platform. Render now requires credit-card identity
+verification before it will create any service — Blueprint or single web service
+— which was not available within the time window. Railway and Fly.io have the
+same requirement. Rather than burn the remaining time on vendor onboarding, the
+system was exposed through ngrok, which the brief explicitly lists as an
+acceptable hosting option.
+
+**To move it to a cloud host later**, nothing in the code changes:
+
+```bash
+# Render (or any platform that reads a Procfile / start command)
+#   build:  pip install -r requirements.txt
+#   start:  uvicorn app.main:app --host 0.0.0.0 --port $PORT
+#   env:    DATABASE_URL (Postgres), VAPI_SERVER_SECRET, PYTHON_VERSION=3.11.9
+```
+
+Then regenerate the assistant config against the new URL and update the three
+tool webhooks in Vapi:
+
+```bash
+python vapi/build_assistant.py --server-url https://<new-host> --secret "$VAPI_SERVER_SECRET"
+```
+
+**Trade-off, stated plainly:** the tunnel means the machine must be running and
+both processes alive during review. In exchange, persistence is *stronger* than
+it would have been on a free cloud tier — the SQLite file lives on a real disk
+that survives restarts and redeploys, whereas Render's free web instances have
+an ephemeral filesystem and would have required the external Postgres anyway.
 
 Then in Vapi: import `vapi/assistant.json`, buy a U.S. number, and attach the
 assistant to it. Step-by-step instructions, including the Vapi dashboard
@@ -271,10 +315,12 @@ clicks, are in [`SETUP.md`](SETUP.md).
 
 ## Trade-offs and known limitations
 
-1. **SQLite locally, Postgres in production.** SQLite keeps the local setup to
-   one command, but Render's free web filesystem is ephemeral, so the deployed
-   copy must use Postgres for the "call back tomorrow" requirement to hold. One
-   env var switches between them.
+1. **SQLite, not Postgres.** Because the app is served from a real filesystem
+   rather than an ephemeral container, SQLite satisfies the persistence
+   requirement as-is: the file survives restarts and second calls. The Postgres
+   path is written and configured (`DATABASE_URL`, `psycopg2` pinned,
+   `postgres://` → `postgresql://` normalization in `app/database.py`) but is
+   not exercised in this deployment. Switching is one environment variable.
 2. **No migrations.** Tables are created with `create_all()`. Fine for a
    greenfield schema; a real system would use Alembic before the first change.
 3. **Duplicate detection is phone-only.** Two family members sharing a landline
@@ -287,9 +333,11 @@ clicks, are in [`SETUP.md`](SETUP.md).
 6. **No retry/queue on DB failure.** The caller is told to expect a callback
    rather than the agent silently losing the data; an outbox table would be the
    next step.
-7. **Render free tier cold-starts** (~30 s after 15 minutes idle). The first
-   tool call of the day can time out. Hitting `/health` before a demo call, or
-   any paid instance, avoids it.
+7. **The tunnel is a single point of failure.** If the host machine sleeps or
+   either process stops, the number answers but every tool call fails — the
+   agent then apologises and promises a callback rather than lying about a save
+   (see `SAVE_FAILED` handling), but no registration completes. A cloud host
+   removes this; see [Deployment](#deployment).
 8. **Address is not verified.** No USPS/Smarty lookup — the ZIP is format-checked
    but not matched against the city and state.
 

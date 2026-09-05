@@ -4,7 +4,7 @@
   "firstMessageMode": "assistant-speaks-first",
   "model": {
     "provider": "openai",
-    "model": "gpt-4o",
+    "model": "gpt-4.1",
     "temperature": 0.3,
     "messages": [
       {
@@ -17,8 +17,8 @@
         "type": "function",
         "async": false,
         "server": {
-          "url": "https://YOUR-APP.onrender.com/vapi/webhook",
-          "secret": "REPLACE_WITH_YOUR_SECRET",
+          "url": "https://9f87-43-229-165-236.ngrok-free.app/vapi/webhook",
+          "secret": "hania-voice-2026-9f3k2m7q",
           "timeoutSeconds": 20
         },
         "function": {
@@ -46,8 +46,8 @@
         "type": "function",
         "async": false,
         "server": {
-          "url": "https://YOUR-APP.onrender.com/vapi/webhook",
-          "secret": "REPLACE_WITH_YOUR_SECRET",
+          "url": "https://9f87-43-229-165-236.ngrok-free.app/vapi/webhook",
+          "secret": "hania-voice-2026-9f3k2m7q",
           "timeoutSeconds": 20
         },
         "function": {
@@ -155,8 +155,8 @@
         "type": "function",
         "async": false,
         "server": {
-          "url": "https://YOUR-APP.onrender.com/vapi/webhook",
-          "secret": "REPLACE_WITH_YOUR_SECRET",
+          "url": "https://9f87-43-229-165-236.ngrok-free.app/vapi/webhook",
+          "secret": "hania-voice-2026-9f3k2m7q",
           "timeoutSeconds": 20
         },
         "function": {
@@ -255,21 +255,13 @@
     ]
   },
   "voice": {
-    "provider": "11labs",
-    "voiceId": "21m00Tcm4TlvDq8ikWAM",
-    "stability": 0.5,
-    "similarityBoost": 0.75
+    "provider": "vapi",
+    "voiceId": "Elliot"
   },
   "transcriber": {
-    "provider": "deepgram",
-    "model": "nova-2",
-    "language": "en",
-    "keywords": [
-      "insurance:2",
-      "ZIP:2",
-      "apartment:1",
-      "Medicare:2"
-    ]
+    "provider": "soniox",
+    "model": "stt-rt-v3",
+    "language": "en"
   },
   "backgroundSound": "office",
   "silenceTimeoutSeconds": 20,
@@ -285,8 +277,8 @@
     "take care"
   ],
   "server": {
-    "url": "https://YOUR-APP.onrender.com/vapi/webhook",
-    "secret": "REPLACE_WITH_YOUR_SECRET"
+    "url": "https://9f87-43-229-165-236.ngrok-free.app/vapi/webhook",
+    "secret": "hania-voice-2026-9f3k2m7q"
   },
   "serverMessages": [
     "tool-calls",

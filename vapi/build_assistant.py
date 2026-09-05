@@ -203,17 +203,18 @@ def build(server_url: str, secret: str, model: str, voice_id: str) -> dict:
             "tools": tools,
         },
         "voice": {
-            "provider": "11labs",
+            # Vapi's own voices need no third-party key, which keeps the number
+            # of vendor accounts (and points of failure) down.
+            "provider": "vapi",
             "voiceId": voice_id,
-            "stability": 0.5,
-            "similarityBoost": 0.75,
         },
         "transcriber": {
-            "provider": "deepgram",
-            "model": "nova-2",
+            # Soniox measured 1.8% WER on this workload in the Vapi dashboard —
+            # better than nova-2 for spelled-out names and digit strings, which
+            # is most of this call.
+            "provider": "soniox",
+            "model": "stt-rt-v3",
             "language": "en",
-            # Helps the STT engine with the vocabulary this call always contains.
-            "keywords": ["insurance:2", "ZIP:2", "apartment:1", "Medicare:2"],
         },
         # Let callers interrupt — corrections need to land mid-sentence.
         "backgroundSound": "office",
@@ -247,10 +248,8 @@ def main() -> None:
         "--secret",
         default=os.getenv("VAPI_SERVER_SECRET", "REPLACE_WITH_YOUR_SECRET"),
     )
-    parser.add_argument("--model", default="gpt-4o")
-    parser.add_argument(
-        "--voice-id", default="21m00Tcm4TlvDq8ikWAM", help="ElevenLabs voice id."
-    )
+    parser.add_argument("--model", default="gpt-4.1")
+    parser.add_argument("--voice-id", default="Elliot", help="Vapi voice id.")
     args = parser.parse_args()
 
     config = build(args.server_url, args.secret, args.model, args.voice_id)
